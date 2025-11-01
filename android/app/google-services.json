@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "525877930158",
+    "firebase_url": "https://doan-86f54-default-rtdb.firebaseio.com",
+    "project_id": "doan-86f54",
+    "storage_bucket": "doan-86f54.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:525877930158:android:b27c3f107c5d9348abe53f",
+        "android_client_info": {
+          "package_name": "com.example.my_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAN5Tt74sVkB2qGa-Pw1Rl_iS6o1lQ9RDg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
