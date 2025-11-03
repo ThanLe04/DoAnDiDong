@@ -116,7 +116,11 @@ class _C1State extends State<C1> {
 
   void _showGameOverDialog() {
     _timer?.cancel();
-    _userService.updateGameScoreIfHigher(widget.user.uid, 'calculationGame', score);
+    _userService.updatePostGameActivity(
+      userId: widget.user.uid,
+      gameKey: 'calculationGame',
+      newScore: score,
+    );
 
     showDialog(
       context: context,

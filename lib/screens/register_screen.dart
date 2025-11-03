@@ -75,6 +75,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'logicGame': 0,
           'calculationGame': 0,
         },
+        'streak': 0, // Bắt đầu chuỗi = 0
+        'lastPlayedDate': '',
       });
 
       // Gửi email xác thực

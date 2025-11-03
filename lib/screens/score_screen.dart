@@ -11,19 +11,30 @@ class ScoreScreen extends StatefulWidget {
 class _ScoreScreenState extends State<ScoreScreen> {
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
 
+  // --- THAY ĐỔI 1: Thêm 'streak' vào danh sách ---
   final List<String> _gameTypes = [
+    'streak', // Thêm vào đây
     'observationGame',
     'memoryGame',
     'logicGame',
     'calculationGame'
   ];
 
-  String _selectedGame = 'observationGame';
+  // --- THAY ĐỔI 2: Đặt 'streak' làm giá trị mặc định ---
+  String _selectedGame = 'streak'; 
 
+  // --- THAY ĐỔI 3: Cập nhật hàm _getScoresStream ---
   Stream<DatabaseEvent> _getScoresStream() {
-    return _database.child('users').orderByChild('highScores/$_selectedGame').onValue;
+    if (_selectedGame == 'streak') {
+      // Nếu là 'streak', sắp xếp theo node 'streak'
+      return _database.child('users').orderByChild('streak').onValue;
+    } else {
+      // Nếu là game, sắp xếp theo node 'highScores/ten_game'
+      return _database.child('users').orderByChild('highScores/$_selectedGame').onValue;
+    }
   }
 
+  // --- THAY ĐỔI 4: Cập nhật hàm getGameDisplayName ---
   String getGameDisplayName(String key) {
     switch (key) {
       case 'memoryGame':
@@ -34,6 +45,8 @@ class _ScoreScreenState extends State<ScoreScreen> {
         return 'Logic';
       case 'calculationGame':
         return 'Tính toán';
+      case 'streak': // Thêm case cho streak
+        return 'Chuỗi ngày 🔥';
       default:
         return key;
     }
@@ -43,7 +56,7 @@ class _ScoreScreenState extends State<ScoreScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Xếp Hạng Điểm"),
+        title: Text("Xếp Hạng"), // Đổi tiêu đề
       ),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
@@ -58,7 +71,7 @@ class _ScoreScreenState extends State<ScoreScreen> {
               value: _selectedGame,
               decoration: InputDecoration(
                 border: OutlineInputBorder(),
-                labelText: 'Chọn trò chơi',
+                labelText: 'Chọn bảng xếp hạng', // Đổi text
               ),
               items: _gameTypes.map((String game) {
                 return DropdownMenuItem<String>(
@@ -86,25 +99,38 @@ class _ScoreScreenState extends State<ScoreScreen> {
                   }
 
                   if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-                    return Center(child: Text('Chưa có điểm cao nào'));
+                    return Center(child: Text('Chưa có dữ liệu'));
                   }
 
                   final data = snapshot.data!.snapshot.value as Map;
                   List<Map<String, dynamic>> scores = [];
 
+                  // --- THAY ĐỔI 5: Cập nhật logic trích xuất dữ liệu ---
                   data.forEach((key, value) {
-                    var highScores = value['highScores'];
+                    // Biến 'value' giờ đây là giá trị để sắp xếp
+                    final int displayValue; 
+                    
+                    if (_selectedGame == 'streak') {
+                      displayValue = value['streak'] ?? 0;
+                    } else {
+                      var highScores = value['highScores'];
+                      displayValue = highScores != null ? highScores[_selectedGame] ?? 0 : 0;
+                    }
+
                     scores.add({
                       'username': value['name'],
                       'avatarBase64': value['avatarBase64'],
-                      _selectedGame: highScores[_selectedGame] ?? 0,
+                      'value': displayValue, // Dùng key chung là 'value'
                     });
                   });
 
+                  // Sắp xếp
                   if (_selectedGame == 'logicGame') { 
-                    scores.sort((a, b) => a[_selectedGame].compareTo(b[_selectedGame]));
+                    // Logic game: điểm thấp là tốt
+                    scores.sort((a, b) => a['value'].compareTo(b['value']));
                   } else {
-                    scores.sort((a, b) => b[_selectedGame].compareTo(a[_selectedGame]));
+                    // Các game khác & streak: điểm cao là tốt
+                    scores.sort((a, b) => b['value'].compareTo(a['value']));
                   }
 
                   return ListView.builder(
@@ -140,9 +166,28 @@ class _ScoreScreenState extends State<ScoreScreen> {
                               ),
                             ],
                           ),
-                          trailing: Text(
-                            score[_selectedGame].toString(),
-                            style: TextStyle(fontSize: 16),
+                          // --- THAY ĐỔI 6: Cập nhật trailing ---
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min, // Quan trọng
+                            children: [
+                              // Nếu là streak, thêm icon lửa
+                              if (_selectedGame == 'streak')
+                                const Icon(
+                                  Icons.local_fire_department,
+                                  color: Colors.orange,
+                                  size: 20,
+                                ),
+                              if (_selectedGame == 'streak') 
+                                const SizedBox(width: 4),
+                              // Hiển thị giá trị
+                              Text(
+                                score['value'].toString(), // Luôn dùng 'value'
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       );

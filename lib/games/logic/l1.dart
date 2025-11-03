@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
-import 'dart:math';
-import 'dart:async';
-import '../../services/user_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import '../../services/user_service.dart'; // Đảm bảo đường dẫn này đúng
+import 'dart:math'; // Để dùng Random
+import 'dart:async'; // Để dùng Timer
 
 class L1 extends StatefulWidget {
   final User user;
@@ -13,339 +13,320 @@ class L1 extends StatefulWidget {
 }
 
 class _L1State extends State<L1> {
+  final Map<String, Color> colorMap = {
+    'ĐỎ': Colors.red.shade400,
+    'XANH LÁ': Colors.green.shade400,
+    'XANH LAM': Colors.blue.shade400,
+    'VÀNG': Colors.yellow.shade600,
+    'TÍM': Colors.purple.shade400,
+    'CAM': Colors.orange.shade400,
+    'ĐEN': Colors.black,
+    'HỒNG': Colors.pink.shade300,
+  };
+
   final UserService _userService = UserService();
+  final Random random = Random(); // Tạo 1 đối tượng Random để tái sử dụng
 
-  List<List<int>> solution = List.generate(9, (_) => List.filled(9, 0));
-  List<List<int?>> puzzle = List.generate(9, (_) => List.filled(9, null));
-  List<List<bool>> editable = List.generate(9, (_) => List.filled(9, false));
+  // Biến trạng thái của game
+  int score = 0;
+  int timeLeft = 60;
+  Timer? gameTimer;
 
-  int selectedRow = -1;
-  int selectedCol = -1;
-  int lives = 3;
-  int elapsedSeconds = 0;
-  Timer? _timer;
+  String currentWord = "";
+  Color currentColor = Colors.black;
+  List<Color> answerOptions = [];
+
+  // --- TÍNH NĂNG MỚI: Chế độ Đảo Ngược ---
+  bool isReversedMode = false;
+  // ------------------------------------
 
   @override
   void initState() {
     super.initState();
-    _generateSudoku();
-    _startTimer();
+    _startGame();
   }
-
-  void _startTimer() {
-    elapsedSeconds = 0;
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        elapsedSeconds++;
-      });
-    });
-  }
-
-  void _generateSudoku() {
-    _fillDiagonalBoxes();
-    _fillRemaining(0, 3);
-    _copySolution();
-    _removeCells(30);
-  }
-
-  void _fillDiagonalBoxes() {
-    for (int i = 0; i < 9; i += 3) {
-      _fillBox(i, i);
-    }
-  }
-
-  void _fillBox(int row, int col) {
-    List<int> nums = List.generate(9, (i) => i + 1);
-    nums.shuffle();
-    int idx = 0;
-    for (int i = 0; i < 3; i++) {
-      for (int j = 0; j < 3; j++) {
-        solution[row + i][col + j] = nums[idx++];
-      }
-    }
-  }
-
-  bool _isSafe(int row, int col, int num) {
-    for (int i = 0; i < 9; i++) {
-      if (solution[row][i] == num || solution[i][col] == num) return false;
-    }
-    int startRow = row - row % 3;
-    int startCol = col - col % 3;
-    for (int i = 0; i < 3; i++) {
-      for (int j = 0; j < 3; j++) {
-        if (solution[startRow + i][startCol + j] == num) return false;
-      }
-    }
-    return true;
-  }
-
-  bool _fillRemaining(int row, int col) {
-    if (col >= 9 && row < 8) {
-      row++;
-      col = 0;
-    }
-    if (row >= 9 && col >= 9) return true;
-    if (row < 3 && col < 3) col = 3;
-    else if (row < 6 && col == (row ~/ 3) * 3) col += 3;
-    else if (row >= 6 && col == 6) {
-      row++;
-      col = 0;
-      if (row >= 9) return true;
-    }
-
-    for (int num = 1; num <= 9; num++) {
-      if (_isSafe(row, col, num)) {
-        solution[row][col] = num;
-        if (_fillRemaining(row, col + 1)) return true;
-        solution[row][col] = 0;
-      }
-    }
-    return false;
-  }
-
-  void _copySolution() {
-    for (int i = 0; i < 9; i++) {
-      for (int j = 0; j < 9; j++) {
-        puzzle[i][j] = solution[i][j];
-        editable[i][j] = false;
-      }
-    }
-  }
-
-  void _removeCells(int count) {
-    final rand = Random();
-    int removed = 0;
-    while (removed < count) {
-      int row = rand.nextInt(9);
-      int col = rand.nextInt(9);
-      if (puzzle[row][col] != null) {
-        puzzle[row][col] = null;
-        editable[row][col] = true;
-        removed++;
-      }
-    }
-  }
-
-  void _onCellTap(int row, int col) {
-    if (editable[row][col]) {
-      setState(() {
-        selectedRow = row;
-        selectedCol = col;
-      });
-    }
-  }
-
-  void _onNumberInput(int num) {
-    if (selectedRow != -1 && selectedCol != -1) {
-      if (solution[selectedRow][selectedCol] == num) {
-        setState(() {
-          puzzle[selectedRow][selectedCol] = num;
-          selectedRow = -1;
-          selectedCol = -1;
-        });
-        if (_checkWin()) {
-          _timer?.cancel();
-          _userService.updateGameScoreIfHigher(widget.user.uid, 'logicGame', elapsedSeconds);
-          _showVictoryDialog();
-        }
-      } else {
-        setState(() {
-          lives--;
-        });
-        if (lives == 0) {
-          _timer?.cancel();
-          _showGameOverDialog();
-        }
-      }
-    }
-  }
-
-  bool _checkWin() {
-    for (int i = 0; i < 9; i++) {
-      for (int j = 0; j < 9; j++) {
-        if (puzzle[i][j] != solution[i][j]) return false;
-      }
-    }
-    return true;
-  }
-
-  void _showVictoryDialog() {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('🎉 Chiến thắng!'),
-        content: Text('Bạn đã hoàn thành với thời gian: $elapsedSeconds giây'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _restartGame();
-            },
-            child: const Text('Chơi lại'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: const Text('Thoát'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showGameOverDialog() {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('💀 Game Over'),
-        content: const Text('Bạn đã hết 3 lượt sai!'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _restartGame();
-            },
-            child: const Text('Chơi lại'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: const Text('Thoát'),
-          ),
-        ],
-      ),
-    );
-  }
-  void _restartGame() {
-    setState(() {
-      solution = List.generate(9, (_) => List.filled(9, 0));
-      puzzle = List.generate(9, (_) => List.filled(9, null));
-      editable = List.generate(9, (_) => List.filled(9, false));
-      selectedRow = -1;
-      selectedCol = -1;
-      lives = 3;
-      _generateSudoku();
-      _timer?.cancel();
-      _startTimer();
-    });
-  }
-
-
 
   @override
   void dispose() {
-    _timer?.cancel();
+    gameTimer?.cancel();
     super.dispose();
   }
 
-  Widget _buildGrid() {
-  return Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(9, (i) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(9, (j) {
-            return GestureDetector(
-              onTap: () => _onCellTap(i, j),
-              child: Container(
-                width: 36,
-                height: 36,
-                margin: const EdgeInsets.all(1),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.black12),
-                  color: selectedRow == i && selectedCol == j
-                      ? Colors.blue.shade100
-                      : Colors.white,
-                ),
-                child: Text(
-                  puzzle[i][j]?.toString() ?? '',
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: editable[i][j] ? Colors.blue : Colors.black,
-                  ),
-                ),
-              ),
-            );
-          }),
-        );
-      }),
-    ),
-  );
-}
+  void _startGame() {
+    setState(() {
+      score = 0;
+      timeLeft = 60;
+      isReversedMode = false; // Luôn bắt đầu ở chế độ thường
+    });
+    gameTimer?.cancel();
+    _startTimer();
+    _nextQuestion();
+  }
 
+  void _startTimer() {
+    gameTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (timeLeft > 0) {
+        setState(() {
+          timeLeft--;
+        });
+      } else {
+        _showGameOverDialog();
+      }
+    });
+  }
 
-  Widget _buildNumberPad() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40),
-      child: AspectRatio(
-        aspectRatio: 1, // Tạo khối vuông
-        child: GridView.builder(
-          itemCount: 9,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-          ),
-          physics: const NeverScrollableScrollPhysics(),
-          itemBuilder: (context, index) {
-            return ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.zero,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                backgroundColor: Colors.blue[100],
-              ),
-              onPressed: () => _onNumberInput(index + 1),
-              child: Center(
-                child: Text(
-                  '${index + 1}',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            );
-          },
+  void _nextQuestion() {
+    final List<String> allWords = colorMap.keys.toList();
+    final List<Color> allColors = colorMap.values.toList();
+
+    // 1. Chọn CHỮ
+    final String newWord = allWords[random.nextInt(allWords.length)];
+
+    // 2. Chọn MÀU
+    Color newColor = allColors[random.nextInt(allColors.length)];
+    while (colorMap[newWord] == newColor) {
+      newColor = allColors[random.nextInt(allColors.length)];
+    }
+
+    // --- LOGIC CẢI TIẾN ---
+    // 3. Quyết định chế độ (30% cơ hội đảo ngược)
+    final bool newMode = random.nextInt(100) < 30;
+
+    // 4. Xác định đáp án đúng
+    final Color correctAnswer;
+    if (newMode) {
+      // Chế độ Đảo Ngược: Đáp án là Ý NGHĨA CỦA CHỮ
+      correctAnswer = colorMap[newWord]!;
+    } else {
+      // Chế độ Thường: Đáp án là MÀU CỦA CHỮ
+      correctAnswer = newColor;
+    }
+    // -----------------------
+
+    // 5. Tạo các lựa chọn trả lời
+    List<Color> options = [correctAnswer];
+    
+    // Lấy các màu khác (không trùng với đáp án đúng)
+    List<Color> otherColors = allColors.where((c) => c != correctAnswer).toList();
+    otherColors.shuffle();
+
+    options.addAll(otherColors.take(3));
+    options.shuffle();
+
+    // Cập nhật state để UI thay đổi
+    setState(() {
+      currentWord = newWord;
+      currentColor = newColor;
+      answerOptions = options;
+      isReversedMode = newMode; // Cập nhật chế độ
+    });
+  }
+
+  void _onAnswerPressed(Color selectedColor) {
+    // --- LOGIC CẢI TIẾN ---
+    // 1. Xác định đáp án đúng dựa trên chế độ hiện tại
+    final Color correctAnswer;
+    if (isReversedMode) {
+      // Chế độ Đảo Ngược: Đáp án là Ý NGHĨA CỦA CHỮ
+      correctAnswer = colorMap[currentWord]!;
+    } else {
+      // Chế độ Thường: Đáp án là MÀU CỦA CHỮ
+      correctAnswer = currentColor;
+    }
+    // -----------------------
+
+    // 2. So sánh
+    if (selectedColor == correctAnswer) {
+      // --- ĐÚNG ---
+      setState(() {
+        score++;
+      });
+      _nextQuestion();
+    } else {
+      // --- SAI ---
+      _showGameOverDialog();
+    }
+  }
+
+  void _showGameOverDialog() {
+    gameTimer?.cancel();
+    _userService.updatePostGameActivity(
+      userId: widget.user.uid,
+      gameKey: 'logicGame', // Key của game L1
+      newScore: score,
+    );
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          title: const Text('Game Over!'),
+          content: Text(timeLeft == 0
+              ? 'Hết giờ! Bạn đã đạt $score điểm.'
+              : 'Sai rồi! Điểm cuối cùng của bạn là $score.'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _startGame();
+              },
+              child: const Text('Chơi lại'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).pop();
+              },
+              child: const Text('Thoát', style: TextStyle(color: Colors.red)),
+            ),
+          ],
         ),
       ),
     );
   }
 
-
-
-
   @override
   Widget build(BuildContext context) {
+    // --- UI CẢI TIẾN ---
+    // Xác định văn bản hướng dẫn dựa trên chế độ
+    final String instructionText = isReversedMode
+        ? "Chọn Ý NGHĨA của chữ"
+        : "Chọn MÀU của chữ";
+    // -------------------
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Sudoku')),
+      backgroundColor: Colors.grey[100],
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1.0,
+        title: Text(
+          'Màu sắc hỗn loạn',
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                color: Colors.black,
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        centerTitle: true,
+      ),
       body: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
-            Text('⏱️ Thời gian: $elapsedSeconds giây', style: const TextStyle(fontSize: 18)),
             Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(3, (index) {
-                return Icon(
-                  index < lives ? Icons.favorite : Icons.favorite_border,
-                  color: Colors.red,
-                );
-              }),
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildStatBox('Thời gian', '$timeLeft', Colors.orange),
+                _buildStatBox('Điểm', '$score', Colors.green),
+              ],
             ),
-            const SizedBox(height: 10),
-            _buildGrid(),
-            const SizedBox(height: 10),
-            _buildNumberPad(),
+            
+            const SizedBox(height: 30),
+
+            Expanded(
+              child: Center(
+                child: Text(
+                  currentWord,
+                  style: TextStyle(
+                    fontSize: 64,
+                    fontWeight: FontWeight.bold,
+                    color: currentColor,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 5,
+                        offset: const Offset(2, 2),
+                      )
+                    ]
+                  ),
+                ),
+              ),
+            ),
+
+            // --- UI CẢI TIẾN ---
+            // Hiển thị văn bản hướng dẫn đã thay đổi
+            Text(
+              instructionText,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                // Làm cho nó nổi bật
+                color: Colors.black, 
+              ),
+              textAlign: TextAlign.center,
+            ),
+            // -------------------
+            
+            const SizedBox(height: 20),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: 4,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 15,
+                mainAxisSpacing: 15,
+                childAspectRatio: 2.5,
+              ),
+              itemBuilder: (context, index) {
+                if (answerOptions.isEmpty) return Container();
+                
+                final Color optionColor = answerOptions[index];
+                
+                return ElevatedButton(
+                  onPressed: () => _onAnswerPressed(optionColor),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: optionColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    elevation: 5,
+                  ),
+                  child: const SizedBox(),
+                );
+              },
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildStatBox(String title, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      child: Column(
+        children: [
+          Text(
+            title.toUpperCase(),
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }

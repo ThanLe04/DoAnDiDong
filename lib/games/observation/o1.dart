@@ -73,7 +73,11 @@ class _O1State extends State<O1> {
   }
 
   void _showGameOverDialog() {
-  _userService.updateGameScoreIfHigher(widget.user.uid, 'observationGame', score);
+    _userService.updatePostGameActivity(
+      userId: widget.user.uid,
+      gameKey: 'observationGame',
+      newScore: score,
+    );
   showDialog(
     context: context,
     barrierDismissible: false, // Không cho phép tắt dialog bằng cách nhấn ra ngoài

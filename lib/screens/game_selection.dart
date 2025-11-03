@@ -24,7 +24,7 @@ class GameSelection extends StatelessWidget {
             _buildGameItem(context, 'Game 2',  M1(user: user)),
           ]),
           _buildGameCategory(context, 'Logic', [
-            _buildGameItem(context, 'Sudoku',  L1(user: user)),
+            _buildGameItem(context, 'Màu sắc hỗn loạn',  L1(user: user)),
             _buildGameItem(context, 'Game 2',  M1(user: user)),
           ]),
           _buildGameCategory(context, 'Tính toán', [
