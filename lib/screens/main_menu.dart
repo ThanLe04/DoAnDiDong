@@ -8,7 +8,7 @@ import 'settings.dart';
 import 'score_screen.dart';
 import '../audio_manager.dart';
 import '../services/avatar_service.dart';
-
+import 'chart_screen.dart';
 
 class MainMenu extends StatefulWidget {
   final User user;
@@ -42,7 +42,7 @@ class _MainMenuState extends State<MainMenu> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Góc trên bên trái: chào người dùng
+            // --- PHẦN HEADER (AVATAR, TÊN, STREAK) ---
             Padding(
               padding: const EdgeInsets.only(top: 30, left: 20),
               child: StreamBuilder(
@@ -50,23 +50,20 @@ class _MainMenuState extends State<MainMenu> {
                     .ref('users/${widget.user.uid}')
                     .onValue,
                 builder: (context, snapshot) {
-                  // --- CẬP NHẬT TỪ ĐÂY ---
                   if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
                     final data = Map<String, dynamic>.from(
                         snapshot.data!.snapshot.value as Map);
                     
-                    // Đọc dữ liệu từ snapshot
                     final avatarBase64 = data['avatarBase64'];
                     final String currentUsername = data['name'] ?? 'Người dùng';
-                    final int streak = (data['streak'] ?? 0) as int; // Lấy streak
+                    final int streak = (data['streak'] ?? 0) as int;
 
+                    // Chỉ trả về Row thông tin, KHÔNG CÓ CỘT GỢI Ý NỮA
                     return Row(
                       children: [
-                        // Avatar người dùng
                         GestureDetector(
                           onTap: () async {
                             await pickAndUploadAvatarBase64(widget.user.uid);
-                            // setState(() {}); // StreamBuilder tự cập nhật, không cần setState
                           },
                           child: CircleAvatar(
                             radius: 32,
@@ -76,34 +73,22 @@ class _MainMenuState extends State<MainMenu> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        // Cột chứa Tên và Streak
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Tên người dùng (lấy từ snapshot)
                             Text(
-                              currentUsername, // Dùng tên live
+                              currentUsername,
                               style: const TextStyle(
                                   fontSize: 18, fontWeight: FontWeight.bold),
                             ),
-                            const SizedBox(height: 4), // Khoảng cách nhỏ
-                            
-                            // Hàng chứa icon Lửa và số
+                            const SizedBox(height: 4),
                             Row(
                               children: [
-                                const Icon(
-                                  Icons.local_fire_department, // Icon ngọn lửa
-                                  color: Colors.orangeAccent, // Màu cam
-                                  size: 18,
-                                ),
+                                const Icon(Icons.local_fire_department, color: Colors.orangeAccent, size: 18),
                                 const SizedBox(width: 4),
                                 Text(
-                                  '$streak', // Hiển thị số ngày streak
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.orangeAccent,
-                                  ),
+                                  '$streak',
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orangeAccent),
                                 ),
                               ],
                             ),
@@ -112,31 +97,13 @@ class _MainMenuState extends State<MainMenu> {
                       ],
                     );
                   } else {
-                    // Giao diện khi đang tải
-                    return const Row(
-                      children: [
-                        CircleAvatar(radius: 32, backgroundColor: Colors.grey),
-                        SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Đang tải...',
-                                style: TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ],
-                    );
+                    return const SizedBox(height: 80); // Placeholder khi loading
                   }
-                  // --- KẾT THÚC CẬP NHẬT ---
                 },
               ),
             ),
 
-
             const SizedBox(height: 20),
-
-            // Tên app: Academy of Genius
             const Center(
               child: Text(
                 'Academy of Genius',
@@ -144,7 +111,7 @@ class _MainMenuState extends State<MainMenu> {
                   fontSize: 48,
                   fontWeight: FontWeight.bold,
                   fontFamily: 'Lobster',
-                  color: Colors.white, // Hoặc màu tuỳ chỉnh
+                  color: Colors.white,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -152,7 +119,7 @@ class _MainMenuState extends State<MainMenu> {
 
             const SizedBox(height: 40),
 
-            // Các nút menu
+            // --- MENU CHÍNH ---
             Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 40.0),
@@ -161,47 +128,39 @@ class _MainMenuState extends State<MainMenu> {
                   children: [
                     const SizedBox(height: 15),
                     _buildMenuButton(context, 'Chọn Trò Chơi', Icons.videogame_asset, () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => GameSelection(user: widget.user)),
-                      );
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => GameSelection(user: widget.user)));
                     }),
+                    
+                    // --- THÊM NÚT BIỂU ĐỒ Ở ĐÂY ---
+                    const SizedBox(height: 15),
+                    _buildMenuButton(context, 'Biểu đồ năng lực', Icons.pie_chart, () { // Icon biểu đồ
+                       Navigator.push(context, MaterialPageRoute(builder: (context) => ChartScreen(user: widget.user)));
+                    }),
+                    // -----------------------------
+
                     const SizedBox(height: 15),
                     _buildMenuButton(context, 'Bảng xếp hạng', Icons.bar_chart, () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => ScoreScreen()),
-                      );
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => ScoreScreen()));
                     }),
                     const SizedBox(height: 15),
                     _buildMenuButton(context, 'Cài đặt', Icons.settings, () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => SettingsScreen(user: widget.user)),
-                      );
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => SettingsScreen(user: widget.user)));
                     }),
                     const SizedBox(height: 15),
                     _buildMenuButton(context, 'Thoát', Icons.exit_to_app, () async {
-                      bool? confirmExit = await showDialog(
+                       // ... (logic thoát cũ) ...
+                       bool? confirmExit = await showDialog(
                         context: context,
                         builder: (context) => AlertDialog(
                           title: const Text('Xác nhận'),
                           content: const Text('Bạn có chắc muốn thoát ứng dụng không?'),
                           actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(true),
-                              child: const Text('Có'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(false),
-                              child: const Text('Không'),
-                            ),
+                            TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Có')),
+                            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Không')),
                           ],
                         ),
                       );
-                      if (confirmExit == true) {
-                        SystemNavigator.pop();
-                      }
+                      if (confirmExit == true) SystemNavigator.pop();
                     }),
                   ],
                 ),
@@ -216,11 +175,9 @@ class _MainMenuState extends State<MainMenu> {
 
   Widget _buildMenuButton(BuildContext context, String title, IconData icon, VoidCallback onPressed) {
     return SizedBox(
-      width: 250, // Kích thước vừa phải
+      width: 250,
       child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-        ),
+        style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
         onPressed: onPressed,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,

@@ -124,15 +124,6 @@ class _ScoreScreenState extends State<ScoreScreen> {
                     });
                   });
 
-                  // Sắp xếp
-                  if (_selectedGame == 'logicGame') { 
-                    // Logic game: điểm thấp là tốt
-                    scores.sort((a, b) => a['value'].compareTo(b['value']));
-                  } else {
-                    // Các game khác & streak: điểm cao là tốt
-                    scores.sort((a, b) => b['value'].compareTo(a['value']));
-                  }
-
                   return ListView.builder(
                     itemCount: scores.length,
                     itemBuilder: (context, index) {

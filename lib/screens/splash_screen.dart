@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'login_screen.dart';
 import 'main_menu.dart'; // Màn hình chính sau khi đăng nhập
+import 'package:firebase_database/firebase_database.dart';
+import 'onboarding_survey_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -22,11 +24,34 @@ class _SplashScreenState extends State<SplashScreen> {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user != null) {
-      // Đã đăng nhập → vào main menu
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => MainMenu(user: user)),
-      );
+      // Đã đăng nhập -> KIỂM TRA XEM ĐÃ LÀM KHẢO SÁT CHƯA
+      try {
+        final snapshot = await FirebaseDatabase.instance
+            .ref('users/${user.uid}/hasCompletedOnboarding') // Dùng key mới
+            .get();
+
+        final bool hasCompleted = (snapshot.value ?? false) as bool;
+
+        if (hasCompleted) {
+          // Đã làm -> Vào Main Menu
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => MainMenu(user: user)),
+          );
+        } else {
+          // CHƯA làm -> Bắt buộc vào Màn hình Khảo sát
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => OnboardingSurveyScreen(user: user)),
+          );
+        }
+      } catch (e) {
+        // Nếu có lỗi, cứ cho vào Login
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+        );
+      }
     } else {
       // Chưa đăng nhập → về màn hình đăng nhập
       Navigator.pushReplacement(

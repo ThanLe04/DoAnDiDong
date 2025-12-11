@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-
+import 'onboarding_survey_screen.dart';
 import 'main_menu.dart';
 import 'register_screen.dart';
 import 'ForgotPasswordScreen.dart';
@@ -62,10 +62,27 @@ class _LoginScreenState extends State<LoginScreen> {
       User? user = userCredential.user;
 
       if (user != null && user.emailVerified) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => MainMenu(user: user)),
-        );
+        final snapshot = await FirebaseDatabase.instance
+          .ref('users/${user.uid}/hasCompletedOnboarding')
+          .get();
+        final bool hasCompleted = (snapshot.value ?? false) as bool;
+        // ---------------------------------
+
+        if (mounted) { // Kiểm tra context
+          if (hasCompleted) {
+            // 1. Đã làm khảo sát -> Vào MainMenu
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => MainMenu(user: user)),
+            );
+          } else {
+            // 2. CHƯA làm khảo sát -> Vào Survey
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => OnboardingSurveyScreen(user: user)),
+            );
+          }
+        } 
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Vui lòng xác thực email trước khi đăng nhập.')),

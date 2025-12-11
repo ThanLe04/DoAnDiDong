@@ -77,6 +77,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         },
         'streak': 0, // Bắt đầu chuỗi = 0
         'lastPlayedDate': '',
+        'hasCompletedOnboarding': false, // Đổi tên từ 'hasCompletedPlacementTest'
+        'ageGroup': '',                 // Lưu nhóm tuổi (ví dụ: '18-25')
+        'preferredCategory': '',
       });
 
       // Gửi email xác thực
