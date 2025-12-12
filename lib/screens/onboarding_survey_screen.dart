@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
-import 'main_menu.dart'; // Import MainMenu
+import 'main_screen.dart'; // Import MainMenu
 
 class OnboardingSurveyScreen extends StatefulWidget {
   final User user;
@@ -47,7 +47,7 @@ class _OnboardingSurveyScreenState extends State<OnboardingSurveyScreen> {
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => MainMenu(user: widget.user)),
+          MaterialPageRoute(builder: (context) => MainScreen(user: widget.user)),
         );
       }
     } catch (e) {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'login_screen.dart';
-import 'main_menu.dart'; // Màn hình chính sau khi đăng nhập
+import 'main_screen.dart'; // Màn hình chính sau khi đăng nhập
 import 'package:firebase_database/firebase_database.dart';
 import 'onboarding_survey_screen.dart';
 
@@ -36,7 +36,7 @@ class _SplashScreenState extends State<SplashScreen> {
           // Đã làm -> Vào Main Menu
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => MainMenu(user: user)),
+            MaterialPageRoute(builder: (context) => MainScreen(user: user)),
           );
         } else {
           // CHƯA làm -> Bắt buộc vào Màn hình Khảo sát

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/services.dart';
-import 'main_menu.dart';
+import 'main_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -80,6 +80,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'hasCompletedOnboarding': false, // Đổi tên từ 'hasCompletedPlacementTest'
         'ageGroup': '',                 // Lưu nhóm tuổi (ví dụ: '18-25')
         'preferredCategory': '',
+        'coins': 100,
       });
 
       // Gửi email xác thực
@@ -95,7 +96,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (user.emailVerified) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => MainMenu(user: user)),
+          MaterialPageRoute(builder: (context) => MainScreen(user: user)),
         );
       }
 

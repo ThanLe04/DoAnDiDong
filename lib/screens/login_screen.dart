@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'onboarding_survey_screen.dart';
-import 'main_menu.dart';
+import 'main_screen.dart';
 import 'register_screen.dart';
 import 'ForgotPasswordScreen.dart';
 
@@ -73,7 +73,7 @@ class _LoginScreenState extends State<LoginScreen> {
             // 1. Đã làm khảo sát -> Vào MainMenu
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => MainMenu(user: user)),
+              MaterialPageRoute(builder: (context) => MainScreen(user: user)),
             );
           } else {
             // 2. CHƯA làm khảo sát -> Vào Survey

@@ -1,7 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../services/user_service.dart';
 import 'dart:math';
+import 'dart:async';
 
 class M1 extends StatefulWidget {
   final User user;
@@ -16,8 +19,8 @@ class _M1State extends State<M1> {
     Colors.red.shade400,
     Colors.green.shade400,
     Colors.blue.shade400,
-    Colors.yellow.shade600,
-    Colors.orange.shade400,
+    Colors.yellow.shade700,
+    Colors.pink.shade400, // Đã đổi cam -> hồng
     Colors.purple.shade400,
   ];
 
@@ -25,26 +28,44 @@ class _M1State extends State<M1> {
 
   List<Color> sequence = [];
   List<Color> userInput = [];
+  
+  bool isGameActive = false;
   bool isDisplaying = false;
+  
   Color? currentColor;
   int score = 0;
+  int currentHighScore = 0;
 
-  // Màu "tắt" (mặc định) cho giao diện sáng
-  final Color offColor = Colors.grey.shade200;
+  // Trạng thái hồi sinh
+  bool hasRevived = false;
+
+  final Color offColor = Colors.white;
 
   @override
   void initState() {
     super.initState();
-    // Đặt màu ban đầu là màu "tắt"
     currentColor = offColor; 
-    _startGame();
+    _fetchCurrentHighScore();
+  }
+
+  void _fetchCurrentHighScore() async {
+    final snapshot = await FirebaseDatabase.instance
+        .ref('users/${widget.user.uid}/highScores/memoryGame')
+        .get();
+    if (snapshot.exists) {
+      setState(() {
+        currentHighScore = (snapshot.value as int?) ?? 0;
+      });
+    }
   }
 
   void _startGame() {
     setState(() {
+      isGameActive = true;
       sequence.clear();
       userInput.clear();
       score = 0;
+      hasRevived = false; // Reset trạng thái hồi sinh
       _generateNewSequence();
     });
   }
@@ -52,8 +73,7 @@ class _M1State extends State<M1> {
   void _generateNewSequence() {
     setState(() {
       int nextLength = score + 1;
-      sequence = List.generate(
-          nextLength, (_) => colors[Random().nextInt(colors.length)]);
+      sequence = List.generate(nextLength, (_) => colors[Random().nextInt(colors.length)]);
       userInput.clear();
       isDisplaying = true;
       _displaySequence();
@@ -67,12 +87,13 @@ class _M1State extends State<M1> {
       setState(() {
         currentColor = color;
       });
-      await Future.delayed(const Duration(milliseconds: 1000));
+      int displayTime = score > 5 ? 600 : 800; 
+      await Future.delayed(Duration(milliseconds: displayTime));
+      
       setState(() {
-        // Sửa lỗi: Quay về màu "tắt"
         currentColor = offColor; 
       });
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 300));
     }
 
     setState(() {
@@ -81,97 +102,203 @@ class _M1State extends State<M1> {
   }
 
   void _onColorPressed(Color color) {
-    if (isDisplaying) return;
+    if (isDisplaying || !isGameActive) return;
+
+    HapticFeedback.lightImpact();
 
     setState(() {
       userInput.add(color);
     });
 
-    if (userInput.length == sequence.length) {
-      if (_checkSequence()) {
+    int currentIndex = userInput.length - 1;
+    if (userInput[currentIndex] != sequence[currentIndex]) {
+      HapticFeedback.heavyImpact();
+      // Sai -> Kiểm tra hồi sinh
+      _checkReviveOption();
+    } else {
+      if (userInput.length == sequence.length) {
         setState(() {
           score++;
         });
-        Future.delayed(const Duration(milliseconds: 500), () {
+        Future.delayed(const Duration(milliseconds: 1000), () {
           _generateNewSequence();
         });
-      } else {
-        _showGameOverDialog();
       }
     }
   }
 
-  bool _checkSequence() {
-    for (int i = 0; i < sequence.length; i++) {
-      if (sequence[i] != userInput[i]) {
-        return false;
-      }
+  // --- LOGIC HỒI SINH ---
+  void _checkReviveOption() async {
+    if (hasRevived) {
+      _showGameOverDialog();
+      return;
     }
-    return true;
+
+    int potionCount = await _userService.getItemCount(widget.user.uid, 'revive_potion');
+
+    if (potionCount > 0 && mounted) {
+      _showReviveDialog(potionCount);
+    } else {
+      _showGameOverDialog();
+    }
   }
+
+  void _showReviveDialog(int count) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.favorite, color: Colors.red),
+            SizedBox(width: 10),
+            Text("Cơ hội thứ 2!"),
+          ],
+        ),
+        content: Text("Bạn có muốn dùng 1 Hồi sinh để chơi tiếp không?\n(Bạn đang có: $count)"),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showGameOverDialog();
+            },
+            child: const Text("Không, chấp nhận thua"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () async {
+              bool success = await _userService.updateItemCount(widget.user.uid, 'revive_potion', -1);
+              if (success && mounted) {
+                Navigator.pop(ctx);
+                _reviveGame();
+              } else {
+                Navigator.pop(ctx);
+                _showGameOverDialog();
+              }
+            },
+            child: const Text("Dùng Hồi sinh", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _reviveGame() {
+    setState(() {
+      hasRevived = true;
+      userInput.clear(); // Xóa các bước nhập sai
+      isDisplaying = true; // Chuyển sang trạng thái hiển thị lại
+    });
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Đã hồi sinh! Hãy quan sát lại nhé! ❤️"),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 1),
+      )
+    );
+    
+    // Hiển thị lại chuỗi màu hiện tại để người chơi nhớ lại
+    _displaySequence();
+  }
+  // ---------------------
 
   void _showGameOverDialog() {
+    setState(() => isGameActive = false);
+
     _userService.updatePostGameActivity(
       userId: widget.user.uid,
       gameKey: 'memoryGame',
       newScore: score,
     );
     
+    int displayHighScore = (score > currentHighScore) ? score : currentHighScore;
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => PopScope(
-        canPop: false,
-        child: AlertDialog(
-          // Bỏ màu nền tối, dùng màu trắng mặc định
-          // backgroundColor: Colors.grey[800],
-          // Bỏ style chữ trắng
-          // titleTextStyle: const TextStyle(color: Colors.white, fontSize: 24),
-          // contentTextStyle: const TextStyle(color: Colors.white, fontSize: 16),
-          title: const Text('Game Over!'),
-          content: Text('Bạn đã đạt được $score điểm. Chơi lại?'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _startGame();
-              },
-              // Dùng màu mặc định (hoặc Colors.blue)
-              child: const Text('Chơi lại'),
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Column(
+          children: [
+            Icon(Icons.sentiment_dissatisfied, size: 50, color: Colors.redAccent),
+            SizedBox(height: 10),
+            Text('Sai rồi!', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Điểm của bạn: $score',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pop();
-              },
-              // Dùng màu đỏ cho dễ thấy
-              child: const Text('Thoát', style: TextStyle(color: Colors.red)),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade100,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.emoji_events, color: Colors.amber, size: 24),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Cao nhất: $displayHighScore', 
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
+        actions: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Thoát'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  if (score > currentHighScore) {
+                    setState(() => currentHighScore = score);
+                  }
+                  _startGame();
+                },
+                child: const Text('Chơi lại', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          )
+        ],
       ),
     );
   }
 
+  // ... (Phần Widget build giữ nguyên như cũ)
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Đặt nền sáng (ví dụ: xám rất nhạt)
-      backgroundColor: Color(0xFF578FCA), 
+      backgroundColor: const Color(0xFFF5F7FA), // Nền xám nhạt
       appBar: AppBar(
-        // Đặt nền AppBar màu trắng
-        backgroundColor: Colors.white, 
-        // Đặt màu icon/chữ trên AppBar là màu đen
-        foregroundColor: Colors.black, 
-        // Thêm một chút bóng mờ để phân tách AppBar
-        elevation: 1.0, 
-        title: Text(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.black87),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
           'Sắc màu hồi tưởng',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                // Chữ màu đen
-                color: Colors.black, 
-                fontWeight: FontWeight.bold,
-              ),
+          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),
@@ -179,74 +306,112 @@ class _M1State extends State<M1> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // --- TRẠNG THÁI & ĐIỂM ---
+            if (isGameActive)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: Text(
+                  isDisplaying ? "👀 Hãy quan sát..." : "👉 Đến lượt bạn!",
+                  style: TextStyle(
+                    fontSize: 18, 
+                    fontWeight: FontWeight.bold,
+                    color: isDisplaying ? Colors.orange : Colors.green,
+                  ),
+                ),
+              ),
+
+            // --- KHỐI MÀU HIỂN THỊ ---
             AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
+              duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut,
-              width: 300,
-              height: 300,
+              width: 250,
+              height: 250,
               decoration: BoxDecoration(
                 color: currentColor,
-                borderRadius: BorderRadius.circular(20),
-                // Thêm viền (border) để khối màu nổi bật trên nền sáng
-                border: Border.all(color: Colors.grey.shade300, width: 2),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.grey.shade300, width: 4),
                 boxShadow: [
-                  // Sửa lỗi: Thêm màu cho boxShadow
                   BoxShadow(
-                    color: (currentColor ?? offColor).withOpacity(0.3),
-                    blurRadius: 25,
-                    spreadRadius: 5,
+                    color: (currentColor == offColor) 
+                        ? Colors.black.withOpacity(0.05) 
+                        : currentColor!.withOpacity(0.6),
+                    blurRadius: (currentColor == offColor) ? 10 : 30,
+                    spreadRadius: (currentColor == offColor) ? 0 : 5,
                   )
                 ],
               ),
             ),
-            const SizedBox(height: 50),
+            
+            const SizedBox(height: 40),
+
+            // --- CÁC NÚT CHỌN MÀU ---
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              padding: const EdgeInsets.symmetric(horizontal: 30.0),
               child: Wrap(
-                spacing: 15,
-                runSpacing: 15,
+                spacing: 20,
+                runSpacing: 20,
                 alignment: WrapAlignment.center,
                 children: colors.map((color) {
-                  return ElevatedButton(
-                    onPressed: isDisplaying ? null : () => _onColorPressed(color),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: color,
-                      disabledBackgroundColor: color.withOpacity(0.3),
-                      minimumSize: const Size(90, 90),
-                      shape: const CircleBorder(),
-                      elevation: 8,
+                  return SizedBox(
+                    width: 80,
+                    height: 80,
+                    child: ElevatedButton(
+                      onPressed: (!isGameActive || isDisplaying) ? null : () => _onColorPressed(color),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: color,
+                        disabledBackgroundColor: color.withOpacity(0.3),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        elevation: 5,
+                        padding: EdgeInsets.zero,
+                      ),
+                      child: const SizedBox(),
                     ),
-                    child: const SizedBox(),
                   );
                 }).toList(),
               ),
             ),
+            
             const SizedBox(height: 40),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              decoration: BoxDecoration(
-                // Nền trắng cho hộp điểm
-                color: Colors.white, 
-                borderRadius: BorderRadius.circular(30),
-                // Thêm bóng mờ nhẹ
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                  )
-                ]
-              ),
-              child: Text(
-                'Điểm: $score',
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  // Chữ màu đen
-                  color: Colors.black, 
+
+            // --- KHU VỰC ĐIỂM SỐ / NÚT BẮT ĐẦU ---
+            if (!isGameActive)
+              SizedBox(
+                width: 200,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _startGame,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                    elevation: 5,
+                  ),
+                  child: const Text(
+                    "BẮT ĐẦU",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))
+                  ]
+                ),
+                child: Text(
+                  'Điểm: $score',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ),
